@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="referrer" content="origin">
+  <title>Naver Map (WebView)</title>
+  <style>
+    html,body,#map{height:100%;margin:0;padding:0}
+    .err{position:fixed; inset:0; display:grid; place-items:center;
+         font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; text-align:center; padding:24px}
+    .hud{position:fixed;left:8px;bottom:8px;background:#0008;color:#fff;padding:6px 10px;border-radius:8px;font:12px/1.3 system-ui}
+    /* 1105 웹뷰 위 버튼 떠다니는 액션 버튼(FAB) */
+    .fab{
+  position:fixed;
+  left:calc(12px + env(safe-area-inset-left));
+  top:calc(12px + env(safe-area-inset-top));
+  min-width:44px; height:44px; padding:0 14px;
+  border:0; border-radius:999px;
+  background:#3478F6; color:#fff; font:14px/44px system-ui;
+  box-shadow:0 4px 12px rgba(0,0,0,.25); cursor:pointer;
+  z-index:2147483647;
+  -webkit-user-select:none; user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  transform:translateZ(0);
+}
+.fab:active{ transform:translateY(1px); }
+  </style>
+  <script>
+  (function(){
+    const DEFAULT_CID = "i05xoo0sn8";
+
+    const qs   = new URLSearchParams(location.search);
+    const cid  = (qs.get('cid')  || DEFAULT_CID).trim();
+    const lat  = parseFloat(qs.get('lat')  || '37.58361');
+    const lng  = parseFloat(qs.get('lng')  || '127.02528');
+    const zoom = parseInt (qs.get('zoom') || '17', 10);
+
+    // 1105 버튼이 넘길 기본 타겟 (쿼리로 덮어쓰기 가능) 예: ?atarget=Main
+    const atarget = (qs.get('atarget') || 'Main').trim();
+
+    // 에디터/브라우저 단독 확인용: ?sim=1 이면 자동 경로 시뮬레이터 켜짐
+    const enableSim = qs.get('sim') === '1';
+
+    let map, myMarker, accCircle;
+
+    function ready(fn){
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn, {once:true});
+      else fn();
+    }
+    function showError(msg){
+      ready(()=>{
+        const div=document.createElement('div');
+        div.className='err';
+        div.innerHTML=`<div><b>네이버 지도 로드 실패</b><br>${msg}<br><br>
+                       <small>URI: ${location.href}</small></div>`;
+        document.body.appendChild(div);
+      });
+    }
+    function hud(msg){
+      let h=document.querySelector('.hud');
+      if(!h){ h=document.createElement('div'); h.className='hud'; document.body.appendChild(h); }
+      h.textContent=msg;
+    }
+
+    // 1105 UniWebView 감지
+    // const isUniWebView = /UniWebView/i.test(navigator.userAgent);
+    // 앱 감지: 쿼리 플래그(uv), JS 플래그(__uv), UA(예비)
+    const isUniWebView =
+  qs.get('uv') === '1' ||            // Unity가 URL에 붙여줌
+  (typeof window !== 'undefined' && window.__uv === 1) ||
+  /UniWebView/i.test(navigator.userAgent);
+
+    // 1105 유니티(→안드로이드)로 신호 보내는 함수
+    function goAndroid(target){
+  //     // const t = encodeURIComponent((target || atarget || 'Main').trim());
+  //     // const url = `uniwebview://goAndroid?target=${t}`;
+  //     // if(isUniWebView){
+  //     //   // UniWebView가 이 스킴을 가로채서 Unity C# OnMessageReceived로 전달
+  //     //   location.href = url;
+  //     //   hud('안드로이드 화면 전환 요청 전송됨');
+  //     // }else{
+  //     //   // 브라우저에서 열었을 때의 안내
+  //     //   alert('이 버튼은 앱 내 웹뷰에서 동작합니다. (UniWebView 스킴)');
+  //     // }
+  //     const t = encodeURIComponent((target || atarget || 'Main').trim());
+  // const url = `uniwebview://goAndroid?target=${t}`;
+
+  // // 항상 시도. 앱이면 UniWebView가 가로채고, 브라우저면 조용히 무시(또는 OS 에러 페이지).
+  // location.href = url;
+      location.href = "uniwebview://goAndroid"; // ← 파라미터 없음
+    }
+
+    if(!cid){ showError('cid(클라이언트ID)가 없습니다. 예) ?cid=YOUR_CLIENT_ID'); return; }
+
+    // 👉 원래 쓰던 로더 그대로 유지 (ncpKeyId)
+    const s=document.createElement('script');
+    s.src='https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId='+encodeURIComponent(cid);
+    // 필요시, 당신 환경에서 ncpClientId로 써야 한다면 위 줄 대신 아래 주석 해제
+    // s.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=' + encodeURIComponent(cid);
+
+    s.onload=()=>ready(()=>{
+      map=new naver.maps.Map('map',{
+        center:new naver.maps.LatLng(lat,lng),
+        zoom:isNaN(zoom)?17:zoom,
+        zoomControl:true,
+        zoomControlOptions:{position:naver.maps.Position.TOP_RIGHT}
+      });
+
+      // ===== Unity에서 호출할 수 있는 API =====
+      window.UnityMap = {
+        setCenter:(la,ln)=>{
+          const p=new naver.maps.LatLng(+la,+ln);
+          map.setCenter(p);
+          return true;
+        },
+        setZoom:(z)=>{ map.setZoom(+z); return true; },
+        addMarker:(la,ln,title)=>{
+          const p=new naver.maps.LatLng(+la,+ln);
+          new naver.maps.Marker({ position:p, map, title:title||'' });
+          return true;
+        },
+        /** ▶ 실시간 위치 갱신(마커 고정 재사용 + 정확도 원) */
+        updateMyLocation:(la,ln,accMeters=0)=>{
+          const p=new naver.maps.LatLng(+la,+ln);
+
+          // 최초 생성
+          if(!myMarker){
+            myMarker=new naver.maps.Marker({
+              position:p, map,
+              icon:{
+                content:`<div style="width:14px;height:14px;border-radius:50%;
+                                 background:#3478F6;border:2px solid #fff;box-shadow:0 0 0 2px #3478F633"></div>`,
+                size:new naver.maps.Size(14,14),
+                anchor:new naver.maps.Point(7,7)
+              }
+            });
+          }else{
+            myMarker.setPosition(p);
+          }
+
+          // 정확도 원
+          const radius = Math.max(0, +accMeters||0);
+          if(radius>0){
+            if(!accCircle){
+              accCircle=new naver.maps.Circle({
+                map, center:p, radius,
+                fillColor:'#3478F6', fillOpacity:0.15,
+                strokeColor:'#3478F6', strokeOpacity:0.5, strokeWeight:2
+              });
+            }else{
+              accCircle.setCenter(p);
+              accCircle.setRadius(radius);
+            }
+          }else if(accCircle){
+            accCircle.setMap(null); accCircle=null;
+          }
+
+          return true;
+        }
+      };
+
+      // ===== 1105 화면 전환 버튼 생성 =====
+      const btn = document.createElement('button');
+      btn.className = 'fab';
+      btn.id = 'goAndroidBtn';
+      btn.type = 'button';
+      btn.textContent = '메인 화면';
+      btn.addEventListener('click', ()=> goAndroid());
+      document.body.appendChild(btn);
+
+      // ===== 브라우저/에디터 단독 확인용 자동 시뮬레이터 =====
+      if(enableSim){
+        const route = [
+          [37.58361,127.02528,5],  // 시작
+          [37.58320,127.02650,5],
+          [37.58270,127.02780,6],  // 공학관 근처
+          [37.58210,127.02890,6],  // 창의관 근처
+          [37.58150,127.03020,7]   // 신공학관 근처
+        ];
+        let i=0;
+        hud('SIM: running');
+        function tick(){
+          const [la,ln,acc]=route[i];
+          UnityMap.updateMyLocation(la,ln,acc);
+          UnityMap.setCenter(la,ln);
+          i=(i+1)%route.length;
+          setTimeout(tick, 1200);
+        }
+        tick();
+      }
+    });
+    s.onerror=()=>showError('maps.js 로드 실패: cid/도메인 설정을 확인하세요.');
+    document.head.appendChild(s);
+  })();
+  </script>
+</head>
+<body>
+  <div id="map"></div>
+  <!-- 1105 브라우저 디버그용 HUD(필요 시 표시됨) -->
+  <div class="hud" style="display:none"></div>
+</body>
+</html>
