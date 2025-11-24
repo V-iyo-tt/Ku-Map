@@ -26,7 +26,7 @@
     const FIXED_LNG = 127.02528; 
     // ===========================================
 
-    // [핵심] HTML이 다 로드될 때까지 기다리는 함수
+    // HTML 로딩 대기 함수
     function ready(fn) {
       if (document.readyState !== 'loading') {
         fn();
@@ -35,9 +35,15 @@
       }
     }
 
-    // 네이버 API가 로드된 후 실행되는 함수
     window.initMap = function() {
-        // ★ 여기서 ready()를 써서 안전하게 실행합니다!
+        // ★ [수정됨] 핵심 안전장치 추가!
+        // naver 객체가 아직 로딩되지 않았다면 0.1초 뒤에 다시 시도합니다.
+        if (typeof naver === 'undefined') {
+            console.log("naver 객체 대기 중...");
+            setTimeout(window.initMap, 100);
+            return;
+        }
+
         ready(function() {
             function hud(msg){
                 let h = document.querySelector('.hud');
@@ -52,7 +58,7 @@
             // 1. 위치 객체 생성
             const targetLocation = new naver.maps.LatLng(FIXED_LAT, FIXED_LNG);
 
-            // 2. 맵 생성 (이제 <div id="map">이 확실히 존재함)
+            // 2. 맵 생성
             map = new naver.maps.Map('map', {
                 center: targetLocation,
                 zoom: 17,
