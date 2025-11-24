@@ -4,62 +4,78 @@
   <meta charset="utf-8" />
   <meta name="referrer" content="origin">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Naver Map (Fixed Coordinates)</title>
+  <title>Naver Map (Callback Version)</title>
   <style>
     html,body,#map{height:100%;margin:0;padding:0}
-    /* 알림창 스타일 */
     .hud{position:fixed;left:8px;bottom:8px;background:#0008;color:#fff;padding:6px 10px;border-radius:8px;font:12px/1.3 system-ui; z-index: 1000;}
   </style>
   <script>
+    // 전역 변수로 선언
     const DEFAULT_CID = "pu0ce4kfq8"; 
     let map;
 
-    // ★★★ [여기서 좌표를 수정하세요!] ★★★
-    // 원하는 장소의 위도(Latitude)와 경도(Longitude)를 직접 입력합니다.
-    // 예시: 고려대학교 공학관 부근
-    const FIXED_LAT = 37.58361;  
-    const FIXED_LNG = 127.02528; 
-    // -----------------------------------
-
+    // ★ 1. 네이버 지도가 모든 준비를 마친 뒤에 호출할 함수 정의
     window.initMap = function() {
+        const qs = new URLSearchParams(location.search);
+        
+        // URL 파라미터 가져오기
+        const place = (qs.get('place') || '').trim();
+        let lat = parseFloat(qs.get('lat') || '37.58361');
+        let lng = parseFloat(qs.get('lng') || '127.02528');
+        const zoom = parseInt(qs.get('zoom') || '17', 10);
+
         function hud(msg){
             let h=document.querySelector('.hud');
             if(!h){ h=document.createElement('div'); h.className='hud'; document.body.appendChild(h); }
             h.textContent=msg;
         }
 
-        // 1. 입력한 좌표로 위치 객체 생성
-        const targetLocation = new naver.maps.LatLng(FIXED_LAT, FIXED_LNG);
-
-        // 2. 맵 생성 (중심점을 입력한 좌표로 설정)
+        // 맵 생성
         map = new naver.maps.Map('map', {
-            center: targetLocation,
-            zoom: 17 // 줌 레벨 (클수록 확대)
+            center: new naver.maps.LatLng(lat, lng),
+            zoom: zoom
         });
 
-        // 3. 마커 찍기
-        new naver.maps.Marker({
-            position: targetLocation,
-            map: map,
-            title: "지정된 위치"
-        });
+        // // ★ 2. 이제 Geocoder가 확실히 로드된 상태에서 검색 실행
+        // if (place) {
+        //     hud('검색 중: ' + place);
+            
+        //     if (!naver.maps.Service || !naver.maps.Service.geocode) {
+        //         hud('치명적 오류: Geocoder 로드 실패. 새로고침 해주세요.');
+        //         return;
+        //     }
 
-        // 알림창 표시
-        hud(`위치 설정 완료: ${FIXED_LAT}, ${FIXED_LNG}`);
+        //     naver.maps.Service.geocode({ query: place }, function(status, response) {
+        //         if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
+        //             const item = response.v2.addresses[0];
+        //             const newPoint = new naver.maps.LatLng(item.y, item.x);
+                    
+        //             map.setCenter(newPoint);
+        //             new naver.maps.Marker({ position: newPoint, map: map, title: place });
+                    
+        //             hud('이동 완료: ' + place);
+        //             console.log("GEOCODE SUCCESS:", item);
+        //         } else {
+        //             hud('검색 실패 (결과 없음): ' + place);
+        //             console.log("GEOCODE FAIL:", response);
+        //         }
+        //     });
+        // }
 
-        // Unity 통신 객체 (기존 기능 유지)
+        // Unity 통신 객체
         window.UnityMap = {
             setCenter: (la, ln) => { map.setCenter(new naver.maps.LatLng(la, ln)); },
             updateMyLocation: (la, ln) => { /* ... */ }
         };
     };
 
+    // ★ 3. 스크립트 로드 (onload 대신 callback 파라미터 사용)
     (function(){
         const qs = new URLSearchParams(location.search);
         const cid = (qs.get('cid') || DEFAULT_CID).trim();
         
         const s = document.createElement('script');
-        // geocoder는 필요 없지만 혹시 몰라 유지, callback 필수
+        // 주소 끝에 &callback=initMap 을 추가하여, 로딩 완료 후 initMap 함수가 실행되도록 함
         s.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=' + encodeURIComponent(cid) + '&submodules=geocoder&callback=initMap';
         document.head.appendChild(s);
     })();
