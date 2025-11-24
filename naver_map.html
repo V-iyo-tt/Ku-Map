@@ -37,7 +37,7 @@
         });
 
         // // ★ 2. 이제 Geocoder가 확실히 로드된 상태에서 검색 실행
-        // if (place) {
+        if (place) {
         //     hud('검색 중: ' + place);
             
         //     if (!naver.maps.Service || !naver.maps.Service.geocode) {
@@ -45,22 +45,22 @@
         //         return;
         //     }
 
-        //     naver.maps.Service.geocode({ query: place }, function(status, response) {
-        //         if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
-        //             const item = response.v2.addresses[0];
-        //             const newPoint = new naver.maps.LatLng(item.y, item.x);
+           naver.maps.Service.geocode({ query: place }, function(status, response) {
+              if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
+                   const item = response.v2.addresses[0];
+                   const newPoint = new naver.maps.LatLng(item.y, item.x);
                     
-        //             map.setCenter(newPoint);
-        //             new naver.maps.Marker({ position: newPoint, map: map, title: place });
+                   map.setCenter(newPoint);
+                   new naver.maps.Marker({ position: newPoint, map: map, title: place });
                     
-        //             hud('이동 완료: ' + place);
-        //             console.log("GEOCODE SUCCESS:", item);
-        //         } else {
-        //             hud('검색 실패 (결과 없음): ' + place);
-        //             console.log("GEOCODE FAIL:", response);
-        //         }
-        //     });
-        // }
+                   hud(place);
+                   
+               } else {
+                    hud(place);
+                    
+               }
+            });
+        }
 
         // Unity 통신 객체
         window.UnityMap = {
