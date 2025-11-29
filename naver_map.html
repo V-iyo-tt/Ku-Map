@@ -4,17 +4,12 @@
   <meta charset="utf-8" />
   <meta name="referrer" content="origin">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Naver Map (Fixed Coordinates)</title>
+  <title>Naver Map (Clean View)</title>
   <style>
+    /* 지도 전체 화면 채우기 */
     html, body, #map { height: 100%; margin: 0; padding: 0; }
     body { overflow: hidden; } 
-    .hud {
-      position: fixed; left: 8px; bottom: 8px;
-      background: rgba(0, 0, 0, 0.6); color: #fff;
-      padding: 6px 10px; border-radius: 8px;
-      font: 12px/1.3 system-ui, -apple-system, sans-serif;
-      z-index: 1000; pointer-events: none;
-    }
+    /* 텍스트(HUD) 관련 스타일 제거됨 */
   </style>
   <script>
     const DEFAULT_CID = "pu0ce4kfq8"; 
@@ -36,8 +31,7 @@
     }
 
     window.initMap = function() {
-        // ★ [수정됨] 핵심 안전장치 추가!
-        // naver 객체가 아직 로딩되지 않았다면 0.1초 뒤에 다시 시도합니다.
+        // 네이버 지도 객체 로딩 안전장치
         if (typeof naver === 'undefined') {
             console.log("naver 객체 대기 중...");
             setTimeout(window.initMap, 100);
@@ -45,20 +39,10 @@
         }
 
         ready(function() {
-            function hud(msg){
-                let h = document.querySelector('.hud');
-                if(!h){ 
-                    h = document.createElement('div'); 
-                    h.className = 'hud'; 
-                    document.body.appendChild(h); 
-                }
-                h.textContent = msg;
-            }
-
             // 1. 위치 객체 생성
             const targetLocation = new naver.maps.LatLng(FIXED_LAT, FIXED_LNG);
 
-            // 2. 맵 생성
+            // 2. 맵 생성 (중심점 잡기)
             map = new naver.maps.Map('map', {
                 center: targetLocation,
                 zoom: 17,
@@ -68,18 +52,14 @@
                 zoomControl: false
             });
 
-            // 3. 마커 생성
-            new naver.maps.Marker({
-                position: targetLocation,
-                map: map
-            });
+            // 마커 생성 코드 제거됨 (new naver.maps.Marker ...)
+            // 텍스트 출력 코드 제거됨 (hud ...)
 
-            hud(`위치 설정: ${FIXED_LAT}, ${FIXED_LNG}`);
-
-            // Unity 통신 객체
+            // Unity 통신 객체 (필요 시 중심점 이동 기능은 유지)
             window.UnityMap = {
-                setCenter: (la, ln) => { map.setCenter(new naver.maps.LatLng(la, ln)); },
-                updateMyLocation: (la, ln) => { /* ... */ }
+                setCenter: (la, ln) => { 
+                    if(map) map.setCenter(new naver.maps.LatLng(la, ln)); 
+                }
             };
         });
     };
